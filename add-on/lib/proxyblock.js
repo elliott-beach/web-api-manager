@@ -14,7 +14,7 @@
     // content scripts.  Its written here as a proper function
     // just to make it easier to write and deploy (ie vim highlights
     // it just like any other JS).
-    const proxyBlockingFunction = function () {
+    function proxyBlockingFunction (window) {
 
         const settings = window.WEB_API_MANAGER_PAGE;
         const shouldLog = settings.shouldLog;
@@ -25,6 +25,17 @@
         if (standardsToBlock.length === 0) {
             return;
         }
+
+        // Prevent window.open from returning a window that can
+        // access the blocked APIs.
+        const openWrapper = {
+            apply: function(target, thisArg, argumentsList){
+                const window = target.apply(thisArg, argumentsList);
+                proxyBlockingFunction(window);
+                return window;
+            }
+        };
+        window.open = new Proxy(window.open, openWrapper);
 
         // Its possible that the Web API removal code will block direct references
         // to the following methods, so grab references to them before the
@@ -261,7 +272,7 @@
             };
         `;
 
-        const proxyingBlockingSrc = "(" + proxyBlockingFunction.toString() + "())";
+        const proxyingBlockingSrc = "(" + proxyBlockingFunction.toString() + "(window))";
         const completeScriptCode = proxyBlockingSettings + "\n" + proxyingBlockingSrc;
 
         // Use the SJ Crypto library, instead of the WebCrypto library,
